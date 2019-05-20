@@ -9,7 +9,7 @@ items:
         component: webhook2kafka
       name: webhook2kafka
     spec:
-      replicas: 3
+      replicas: 1
       revisionHistoryLimit: 4
       selector:
         app: cyborg-regidores
@@ -36,6 +36,11 @@ items:
                     secretKeyRef:
                       name: cyborg-regidores
                       key: kafka-bootstrap-servers
+                - name: GITHUB_WEBHOOK_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: sesheta-secret
+                      key: github-webhook-secret
               ports:
                 - containerPort: 8080
                   protocol: TCP
@@ -50,6 +55,9 @@ items:
                 - mountPath: /opt/app-root/src/conf
                   name: root-ca-cert
                   readOnly: true
+                - mountPath: /opt/app-root/src/secrets
+                  name: datahub-ca-cert
+                  readOnly: true
           volumes:
             - name: root-ca-cert
               secret:
@@ -57,6 +65,13 @@ items:
                 items:
                   - key: root-ca-cert
                     path: ca.pem
+                secretName: cyborg-regidores
+            - name: datahub-ca-cert
+              secret:
+                defaultMode: 420
+                items:
+                  - key: datahub-ca-cert
+                    path: data-hub-kafka-ca.crt
                 secretName: cyborg-regidores
       test: false
       triggers:
@@ -104,6 +119,11 @@ items:
                     secretKeyRef:
                       name: cyborg-regidores
                       key: kafka-bootstrap-servers
+                - name: SESHETA_GITHUB_WEBHOOK_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: sesheta-secret
+                      key: github-webhook-secret
               ports:
                 - containerPort: 8080
                   protocol: TCP
@@ -118,6 +138,9 @@ items:
                 - mountPath: /opt/app-root/src/conf
                   name: root-ca-cert
                   readOnly: true
+                - mountPath: /opt/app-root/src/secrets
+                  name: datahub-ca-cert
+                  readOnly: true
           volumes:
             - name: root-ca-cert
               secret:
@@ -125,6 +148,13 @@ items:
                 items:
                   - key: root-ca-cert
                     path: ca.pem
+                secretName: cyborg-regidores
+            - name: datahub-ca-cert
+              secret:
+                defaultMode: 420
+                items:
+                  - key: datahub-ca-cert
+                    path: data-hub-kafka-ca.crt
                 secretName: cyborg-regidores
       test: false
       triggers:
