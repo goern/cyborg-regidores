@@ -1,0 +1,107 @@
+---
+- name: "Playbook to provision webhook2kafka and normalizers environment"
+  tags:
+    - openshift
+    - thoth
+    - devops
+    - stage
+
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    OCP_TOKEN: "{{ lookup('env','OCP_TOKEN') }}"
+    OCP_URL: "{{ lookup('env','OCP_URL') }}"
+    APPLICATION_NAMESPACE: "{{ lookup('env', 'APPLICATION_NAMESPACE') }}"
+
+  tasks:
+    - name: "Login to OpenShift using provided token"
+      changed_when: false
+      shell: >
+        oc login {{ OCP_URL }} --insecure-skip-tls-verify=true
+        --token {{ OCP_TOKEN }}
+
+    - name: "Make sure to use project {{ APPLICATION_NAMESPACE }}"
+      command: "oc project {{ APPLICATION_NAMESPACE }}"
+      ignore_errors: true
+      register: project_exists
+
+    - name: check if required Secret 'cyborg-regidores' exists
+      shell: >
+        oc get secret --namespace {{ APPLICATION_NAMESPACE }}
+        cyborg-regidores
+      register: secret_exists
+      ignore_errors: true
+
+    - name: create Secret with SSH Key
+      shell: >
+        oc create secret --namespace "{{ APPLICATION_NAMESPACE }}"
+        generic cyborg-test
+        --from-literal=kafka-bootstrap-servers="{{ kafka_servers}}"
+        --from-literal=root-ca-cert= "{{ root_ca_cert}}"
+        --from-literal=datahub-ca-cert="{{ datahub_ca_cert}}"
+        --type=kubernetes.io/ssh-auth
+      when: secret_exists is failed
+
+    - name: check if webhook2kafka ImageStream exists
+      shell: >
+        oc get imagestream --namespace {{ APPLICATION_NAMESPACE }}
+        webhook2kafka
+      register: imagestream_exists
+      ignore_errors: true
+
+    - name: create webhook2kafka and normalizers imagestream
+      shell: >
+        oc process --namespace {{ APPLICATION_NAMESPACE }}
+        --filename=../openshift/imageStream.yaml
+        | oc apply --namespace {{ APPLICATION_NAMESPACE }} -f -
+      when: imagestream_exists is failed
+
+    - name: check if webhook2kafka BuildConfig exists
+      shell: >
+        oc get buildconfig --namespace {{ APPLICATION_NAMESPACE }}
+        webhook2kafka
+      register: buildconfig_exists
+      ignore_errors: true
+
+    - name: create webhook2kafka and normalizers BuildConfig
+      shell: >
+        oc process --namespace {{ APPLICATION_NAMESPACE }}
+        --filename=../openshift/buildConfig.yaml
+        | oc apply --namespace {{ APPLICATION_NAMESPACE }} -f -
+      when: buildconfig_exists is failed
+
+    - name: create webhook2kafka and normalizers deployment
+      shell: >
+        oc process --namespace {{ APPLICATION_NAMESPACE }}
+        --filename ../openshift/deploymentConfig.yaml
+        | oc apply --namespace {{ APPLICATION_NAMESPACE }} -f -
+
+    - name: check if service exists
+      shell: >
+        oc get service --namespace {{ APPLICATION_NAMESPACE }}
+        webhook2kafka
+      register: service_exists
+      ignore_errors: true
+
+    - name: create webhook2kafka service
+      shell: >
+        oc process --namespace {{ APPLICATION_NAMESPACE }}
+        --filename ../openshift/service.yaml
+        | oc apply --namespace {{ APPLICATION_NAMESPACE }} -f -
+      when: service_exists is failed
+
+    - name: check if route exists
+      shell: >
+        oc get route --namespace {{ APPLICATION_NAMESPACE }}
+        webhook2kafka
+      register: route_exists
+      ignore_errors: true
+
+    - name: create webhook2kafka route
+      shell: >
+        oc process --namespace {{ APPLICATION_NAMESPACE }}
+        --filename ../openshift/route.yaml
+        | oc apply --namespace {{ APPLICATION_NAMESPACE }} -f -
+      when: route_exists is failed
